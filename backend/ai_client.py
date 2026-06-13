@@ -216,7 +216,6 @@ async def _call_gemini(text: str) -> dict:
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
         "gemini-2.5-flash:generateContent"
-        f"?key={api_key}"
     )
     payload = {
         "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
@@ -230,7 +229,10 @@ async def _call_gemini(text: str) -> dict:
 
     async def _call():
         async with httpx.AsyncClient(timeout=30.0) as client:
-            res = await client.post(url, json=payload)
+            res = await client.post(
+                url, json=payload,
+                headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+            )
         if res.status_code == 429:
             raise RateLimitError()
         if not res.is_success:
