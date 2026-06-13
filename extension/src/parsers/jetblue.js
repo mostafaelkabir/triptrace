@@ -10,7 +10,7 @@ export default {
     originIATA: /\(([A-Z]{3})\)\s+to\b/i,
     destinationIATA: /\bto\s+[A-Za-z][^(]{0,60}\(([A-Z]{3})\)/i,
     passengerName: /(?:Passenger|Travell?er|Dear)[:\s]+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)+)/,
-    flightNumber: /(?:^|\bflight\s+|[|]\s*)([A-Z]{2}\s?\d{1,4})\b/im,
+    flightNumber: /(?:^|\bflight\s+|[|]\s*)([A-Z0-9]{2}\s?\d{1,4})\b/im,
     aircraftType: /(?:aircraft|equipment)[:\s]+([A-Za-z][A-Za-z0-9\s\-]{3,30})/i,
   },
   dateFormat: "EEE, MMM d, yyyy",

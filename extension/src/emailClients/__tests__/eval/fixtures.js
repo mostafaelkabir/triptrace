@@ -357,4 +357,531 @@ AA 101 | London (LHR) | New York (JFK) | Apr 03, 2024 | 11:30
     `,
     expected: { is_flight: true, departure_date: "2024-03-20", destination_country: "United Kingdom", flight_number: "AA 100" },
   },
+
+  // ── NEW PARSER FIXTURES: Qatar Airways ───────────────────────────────────
+
+  {
+    id: "qr-london-roundtrip",
+    from: "noreply@email.qatarairways.com",
+    subject: "E-Ticket Itinerary QR 3",
+    body: `
+Booking Reference: QR9001
+Passenger: Fatima Al-Rashid
+
+Departure: 05 Jul 2024
+New York (JFK) → London (LHR)
+QR 3 | Aircraft: Boeing 777-200LR
+Stopover: Doha (DOH)
+
+Return: 19 Jul 2024
+London (LHR) → New York (JFK)
+QR 4
+    `,
+    expected: { is_flight: true, departure_date: "2024-07-05", destination_country: "United Kingdom", flight_number: "QR 3" },
+  },
+
+  {
+    id: "qr-tokyo-business",
+    from: "booking@qatarairways.com",
+    subject: "Booking Confirmation QR 807",
+    body: `
+Booking Reference: QTRBIZ7
+Passenger: David Kim
+
+Outbound: 10 Oct 2024
+Chicago (ORD) → Tokyo (NRT)
+QR 807 | Business Class | Aircraft: Airbus A350-1000
+
+Inbound: 24 Oct 2024
+Tokyo (NRT) → Chicago (ORD)
+QR 808
+    `,
+    expected: { is_flight: true, departure_date: "2024-10-10", destination_country: "Japan", flight_number: "QR 807" },
+  },
+
+  // ── NEW PARSER FIXTURES: Southwest Airlines ───────────────────────────────
+
+  {
+    id: "wn-chicago-oneway",
+    from: "noreply@southwest.com",
+    subject: "Your trip confirmation",
+    body: `
+Confirmation Number: XYZ789
+Passenger: Laura Martinez
+
+DEPARTS Thursday, August 15, 2024
+Dallas (DAL) to Chicago (MDW)
+WN 456 | One-way
+
+Bags fly free!
+    `,
+    expected: { is_flight: true, departure_date: "2024-08-15", destination_country: "United States", flight_number: "WN 456" },
+  },
+
+  {
+    id: "wn-denver-roundtrip",
+    from: "noreply@luv.southwest.com",
+    subject: "Reservation confirmed",
+    body: `
+Confirmation Number: SWCONF99
+Passenger: Kevin Nguyen
+
+DEPARTS Friday, September 06, 2024
+Los Angeles (LAX) to Denver (DEN)
+WN 2200
+
+RETURNS Sunday, September 08, 2024
+Denver (DEN) to Los Angeles (LAX)
+WN 2201
+    `,
+    expected: { is_flight: true, departure_date: "2024-09-06", destination_country: "United States", flight_number: "WN 2200" },
+  },
+
+  // ── NEW PARSER FIXTURES: JetBlue ──────────────────────────────────────────
+
+  {
+    id: "b6-boston-roundtrip",
+    from: "noreply@jetblue.com",
+    subject: "Your JetBlue itinerary",
+    body: `
+Confirmation Code: JBCONF5
+Passenger: Olivia Chen
+
+DEPARTS Sat, Oct 12, 2024
+New York (JFK) to Boston (BOS)
+B6 702 | Mint Class
+
+RETURNS Mon, Oct 14, 2024
+Boston (BOS) to New York (JFK)
+B6 703
+    `,
+    expected: { is_flight: true, departure_date: "2024-10-12", destination_country: "United States", flight_number: "B6 702" },
+  },
+
+  {
+    id: "b6-cancun-oneway",
+    from: "noreply@email.jetblue.com",
+    subject: "JetBlue booking confirmation",
+    body: `
+Confirmation Code: CANB6X1
+Passenger: James Wilson
+
+DEPARTS Thu, Mar 07, 2024
+Fort Lauderdale (FLL) to Cancun (CUN)
+B6 220 | One-way
+    `,
+    expected: { is_flight: true, departure_date: "2024-03-07", destination_country: "Mexico", flight_number: "B6 220" },
+  },
+
+  // ── NEW PARSER FIXTURES: Alaska Airlines ──────────────────────────────────
+
+  {
+    id: "as-seattle-roundtrip",
+    from: "noreply@alaskaair.com",
+    subject: "Your Alaska Airlines itinerary",
+    body: `
+Record Locator: ASKL77
+Passenger: Rachel Turner
+
+DEPARTS Sat, Nov 02, 2024
+Los Angeles (LAX) to Seattle (SEA)
+AS 301
+
+RETURNS Sat, Nov 09, 2024
+Seattle (SEA) to Los Angeles (LAX)
+AS 302
+    `,
+    expected: { is_flight: true, departure_date: "2024-11-02", destination_country: "United States", flight_number: "AS 301" },
+  },
+
+  {
+    id: "as-anchorage-oneway",
+    from: "noreply@email.alaskaair.com",
+    subject: "Confirmation AS 177",
+    body: `
+Confirmation Code: ANCH88
+Passenger: Brian Hoffman
+
+DEPARTS Fri, Dec 20, 2024
+Seattle (SEA) to Anchorage (ANC)
+AS 177 | One-way
+Aircraft: Boeing 737-900ER
+    `,
+    expected: { is_flight: true, departure_date: "2024-12-20", destination_country: "United States", flight_number: "AS 177" },
+  },
+
+  // ── NEW PARSER FIXTURES: Etihad Airways ──────────────────────────────────
+
+  {
+    id: "ey-abudhabi-roundtrip",
+    from: "booking@etihad.com",
+    subject: "Etihad Airways E-Ticket",
+    body: `
+Booking Reference: ETYHD11
+Passenger: Sara Al-Khalifa
+
+Departure: 18 Apr 2024
+New York (JFK) → Abu Dhabi (AUH)
+EY 101 | Aircraft: Boeing 787-9 Dreamliner
+
+Return: 02 May 2024
+Abu Dhabi (AUH) → New York (JFK)
+EY 102
+    `,
+    expected: { is_flight: true, departure_date: "2024-04-18", destination_country: "United Arab Emirates", flight_number: "EY 101" },
+  },
+
+  {
+    id: "ey-milan-oneway",
+    from: "noreply@email.etihad.com",
+    subject: "Booking Confirmed EY 89",
+    body: `
+PNR: MILETY9
+Passenger: Giorgio Bianchi
+
+Departing: 07 Jun 2024
+Chicago (ORD) → Milan (MXP)
+EY 89 | One-way
+    `,
+    expected: { is_flight: true, departure_date: "2024-06-07", destination_country: "Italy", flight_number: "EY 89" },
+  },
+
+  // ── NEW PARSER FIXTURES: Singapore Airlines ───────────────────────────────
+
+  {
+    id: "sq-sydney-roundtrip",
+    from: "noreply@mail.singaporeair.com",
+    subject: "Singapore Airlines Booking Confirmation",
+    body: `
+Booking Reference: SQSYD22
+Passenger: Priya Sharma
+
+Departure: 15 Feb 2024
+Los Angeles (LAX) → Sydney (SYD)
+SQ 37 | Aircraft: Airbus A350-900ULR
+
+Return: 01 Mar 2024
+Sydney (SYD) → Los Angeles (LAX)
+SQ 38
+    `,
+    expected: { is_flight: true, departure_date: "2024-02-15", destination_country: "Australia", flight_number: "SQ 37" },
+  },
+
+  {
+    id: "sq-delhi-business",
+    from: "booking@singaporeairlines.com",
+    subject: "E-Ticket Itinerary SQ 63",
+    body: `
+Booking Reference: SQDELB1
+Passenger: Vikram Patel
+
+Departure: 22 Aug 2024
+New York (JFK) → Delhi (DEL)
+SQ 63 | Business Class | Aircraft: Airbus A380-800
+
+Return: 05 Sep 2024
+Delhi (DEL) → New York (JFK)
+SQ 64
+    `,
+    expected: { is_flight: true, departure_date: "2024-08-22", destination_country: "India", flight_number: "SQ 63" },
+  },
+
+  // ── NEGATIVE FIXTURES ──────────────────────────────────────────────────────
+
+  {
+    id: "subscription-cancellation",
+    from: "noreply@southwest.com",
+    subject: "Subscription cancellation confirmed",
+    body: `
+You have successfully cancelled your subscription to Southwest Rapid Rewards updates.
+You will no longer receive promotional emails from us.
+To resubscribe visit our website.
+Your account remains active at southwest.com.
+    `,
+    expected: { is_flight: false, departure_date: null, destination_country: null, flight_number: null },
+  },
+
+  {
+    id: "hotel-upgrade-notice",
+    from: "upgrade@marriott.com",
+    subject: "Room upgrade confirmed",
+    body: `
+Great news! Your room has been upgraded.
+Hotel: Marriott Grand Paris
+Check-in: April 10, 2024
+Check-out: April 14, 2024
+Original room: Standard King
+Upgraded room: Deluxe Suite
+Reservation number: MAR456789
+    `,
+    expected: { is_flight: false, departure_date: null, destination_country: null, flight_number: null },
+  },
+
+  {
+    id: "car-rental-only",
+    from: "reservations@hertz.com",
+    subject: "Hertz car rental confirmation",
+    body: `
+Car Rental Confirmation
+Hertz Reference: HR9876543
+Renter: Michael Scott
+Pick-up location: JFK Airport Terminal 4
+Pick-up date: June 03, 2024
+Drop-off date: June 10, 2024
+Vehicle class: Intermediate SUV
+Total estimated cost: $423.00
+    `,
+    expected: { is_flight: false, departure_date: null, destination_country: null, flight_number: null },
+  },
+
+  {
+    id: "mileage-statement",
+    from: "noreply@delta.com",
+    subject: "Your SkyMiles statement",
+    body: `
+SkyMiles Activity Statement
+Account: Robert Davis
+Balance: 45,230 miles
+
+Recent activity:
+DL 400 ATL-LHR May 10, 2024 — 5,456 miles earned
+DL 401 LHR-ATL May 24, 2024 — 5,456 miles earned
+
+Redeemable miles: 45,230
+    `,
+    expected: { is_flight: false, departure_date: null, destination_country: null, flight_number: null },
+  },
+
+  {
+    id: "newsletter-airline",
+    from: "deals@email.aa.com",
+    subject: "This week's best fares",
+    body: `
+Deals of the Week
+New York to London from $399 round trip
+New York to Paris from $349 round trip
+New York to Tokyo from $599 round trip
+Prices subject to change. Limited time offer.
+Unsubscribe | Privacy Policy
+    `,
+    expected: { is_flight: false, departure_date: null, destination_country: null, flight_number: null },
+  },
+
+  // ── NON-ENGLISH FIXTURES ──────────────────────────────────────────────────
+
+  {
+    id: "tk-turkish-language",
+    from: "noreply@thy.com",
+    subject: "Rezervasyon Onayı - PNR TRKTR1",
+    body: `
+Rezervasyon Onayı
+PNR: TRKTR1
+Yolcu: Mustafa Yıldız
+
+TK 1 | New York (JFK) | İstanbul (IST) | 20 Nis 2024 22:15
+TK 2 | İstanbul (IST) | New York (JFK) | 04 May 2024 23:55
+
+Uçak: Boeing 777-300ER
+    `,
+    expected: { is_flight: true, departure_date: null, destination_country: "Turkey", flight_number: "TK 1" },
+  },
+
+  {
+    id: "af-french-language",
+    from: "noreply@airfrance.com",
+    subject: "Confirmation de réservation AF 11",
+    body: `
+Confirmation de réservation
+Code de réservation: AFR456
+Passager: Pierre Dubois
+
+Outbound: 15 Jun 2024
+New York (JFK) → Paris (CDG)
+AF 11 | Airbus A350-900
+
+Return: 29 Jun 2024
+Paris (CDG) → New York (JFK)
+AF 12
+    `,
+    expected: { is_flight: true, departure_date: "2024-06-15", destination_country: null, flight_number: "AF 11" },
+  },
+
+  {
+    id: "ek-arabic-language",
+    from: "booking@emirates.com",
+    subject: "تأكيد الحجز EK 201",
+    body: `
+تأكيد الحجز
+رقم الحجز: EK456AB
+الراكب: محمد الأمين
+
+رحلة المغادرة
+Dubai (DXB) to New York (JFK)
+Date: 12 Jul 2024
+EK 201 | Aircraft: Airbus A380
+
+رحلة العودة
+New York (JFK) to Dubai (DXB)
+Date: 26 Jul 2024
+EK 202
+    `,
+    expected: { is_flight: true, departure_date: "2024-07-12", destination_country: "United States", flight_number: "EK 201" },
+  },
+
+  // ── EDGE CASES ────────────────────────────────────────────────────────────
+
+  {
+    id: "multi-city-three-legs",
+    from: "booking@expedia.com",
+    subject: "Multi-city itinerary confirmed",
+    body: `
+Itinerary # 72111222333
+Traveler: Anna Schmidt
+Multi-city trip
+
+Leg 1: 05 Mar 2024
+New York (JFK) → London (LHR)
+BA 112 | 09:00
+
+Leg 2: 12 Mar 2024
+London (LHR) → Paris (CDG)
+AF 1680 | 14:30
+
+Leg 3: 19 Mar 2024
+Paris (CDG) → New York (JFK)
+AF 11 | 11:15
+    `,
+    expected: { is_flight: true, departure_date: "2024-03-05", destination_country: "United Kingdom", flight_number: "BA 112" },
+  },
+
+  {
+    id: "one-way-international",
+    from: "noreply@united.com",
+    subject: "One-way flight confirmation",
+    body: `
+Confirmation Number: UA5OWINT
+Passenger: Carlos Rivera
+One-way trip
+
+Departing Thursday, May 23, 2024
+New York (EWR) → Sao Paulo (GRU)
+UA 860 | One-way
+Aircraft: Boeing 767-300ER
+    `,
+    expected: { is_flight: true, departure_date: "2024-05-23", destination_country: "Brazil", flight_number: "UA 860" },
+  },
+
+  {
+    id: "missing-return-date",
+    from: "noreply@britishairways.com",
+    subject: "BA booking confirmation",
+    body: `
+Booking reference: BANORET
+Passenger: Thomas Hughes
+
+Outbound 08 Aug 2024
+New York (JFK) to London (LHR)
+BA 178
+
+Return flight details to follow.
+Return booking reference: pending
+    `,
+    expected: { is_flight: true, departure_date: "2024-08-08", destination_country: "United Kingdom", flight_number: "BA 178" },
+  },
+
+  {
+    id: "partial-forward-email",
+    from: "noreply@lufthansa.com",
+    subject: "Re: Fwd: LH booking",
+    body: `
+---- Forwarded message ----
+Order number: 999-8887776
+Passenger: Stefan Müller
+
+Departure: 17 Apr 2024
+Munich (MUC) → New York (JFK)
+LH 410 | Aircraft: Airbus A340-600
+    `,
+    expected: { is_flight: true, departure_date: "2024-04-17", destination_country: "United States", flight_number: "LH 410" },
+  },
+
+  {
+    id: "very-long-email",
+    from: "itinerary@expedia.com",
+    subject: "Complete travel itinerary",
+    body: `
+Complete Travel Package Confirmation
+Itinerary # 73000111222
+Traveler: Jennifer Adams
+Booking date: January 15, 2024
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FLIGHT DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Departing Thu Mar 21, 2024
+New York (JFK) → Tokyo (NRT)
+JL 006 | Japan Airlines | Aircraft: Boeing 777-300ER
+Departure: 11:45 | Arrival: 14:35+1
+Seat: 14A (Economy)
+Baggage: 2 checked bags included
+
+Return Mon Apr 08, 2024
+Tokyo (NRT) → New York (JFK)
+JL 007 | Japan Airlines
+Departure: 16:30 | Arrival: 14:00
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+HOTEL DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Shinjuku Washington Hotel
+Check-in: March 21, 2024
+Check-out: April 08, 2024
+17 nights | Superior Twin Room
+Room rate: $145/night
+Total hotel: $2,465.00
+
+APA Hotel Akihabara Ekimae
+Check-in: March 25, 2024
+Check-out: March 28, 2024
+3 nights | Standard Single
+Room rate: $110/night
+Total: $330.00
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ACTIVITIES BOOKED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+March 22: Tokyo City Tour - Full Day ($89)
+March 24: Nikko Day Trip by Shinkansen ($145)
+March 27: TeamLab Planets admission ($32)
+March 29: Mount Fuji & Hakone Tour ($189)
+April 01: Kyoto & Nara Day Trip ($210)
+April 03: Osaka Castle + Dotonbori food tour ($99)
+April 05: Universal Studios Japan ($98)
+April 06: Hiroshima & Miyajima Day Trip ($175)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PAYMENT SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Flights: $1,890.00
+Hotels: $2,795.00
+Activities: $1,037.00
+Travel Insurance: $189.00
+Total Charged: $5,911.00
+Payment method: Visa ending in 4242
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT INFORMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Please ensure your passport is valid for at least 6 months beyond your travel dates.
+Japan does not require a visa for US citizens for stays up to 90 days.
+All times shown are local times at origin/destination airports.
+Expedia customer support: 1-800-EXPEDIA
+    `,
+    expected: { is_flight: true, departure_date: "2024-03-21", destination_country: "Japan", flight_number: "JL 006" },
+  },
 ];
