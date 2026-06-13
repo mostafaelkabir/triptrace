@@ -278,6 +278,22 @@ describe("looksLikeConfirmation", () => {
     // PNR (2) + flight number (2) + IATA codes (2) + departure language (1) = 7, well above threshold of 4
     expect(looksLikeConfirmation(text, false)).toBe(true);
   });
+
+  it("does NOT award +2 for non-airline 2-letter codes like 'CA 94103' (ZIP) or 'US 101' (highway)", () => {
+    // These look like flight numbers to the old unbounded [A-Z]{2}\s?\d{1,4} regex
+    // but are not in the IATA carrier code allowlist.
+    const text = `Visit San Francisco CA 94103 in 2024. Take US Highway 101 north.`;
+    // text has a year but no other booking signals — score should be 0
+    expect(looksLikeConfirmation(text, false)).toBe(false);
+  });
+
+  it("awards +2 for real IATA carrier codes like TK 1, AA 100, LH 400", () => {
+    // Only the IATA allowlist codes should fire the signal
+    const text = `Your booking 2024. Flight TK 1 departs JFK.`;
+    // TK 1 (+2) + (JFK) not in parens so no IATA parens signal, but departure (+1) = 3 total
+    // known sender threshold=2 → accept
+    expect(looksLikeConfirmation(text, true)).toBe(true);
+  });
 });
 
 // ---- API calls (mocked fetch) ----

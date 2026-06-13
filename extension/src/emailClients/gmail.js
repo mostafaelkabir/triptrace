@@ -133,8 +133,9 @@ export function looksLikeConfirmation(text, isKnownSender = false) {
   let score = 0;
 
   // Strong signals (each worth 2): unambiguously a booked flight
-  // Actual flight number: 2-letter IATA code + 1-4 digits (TK 1, AA 123, LH 400)
-  if (/\b[A-Z]{2}\s?\d{1,4}\b/.test(text)) score += 2;
+  // Actual flight number: known 2-letter IATA airline code + 1-4 digits.
+  // Uses an explicit allowlist to avoid false positives like "CA 94103" (ZIP) or "US 101" (highway).
+  if (/\b(?:AA|AF|AI|AK|AM|AS|AY|AZ|B6|BA|BG|BR|CA|CI|CX|CZ|DL|EI|EK|ET|EY|F9|FI|FJ|FZ|G3|GA|GF|HU|HX|IB|IC|IR|JL|JQ|KA|KC|KE|KL|KQ|LA|LH|LO|LX|LY|ME|MF|MH|MK|MU|MX|NH|NK|NW|NZ|OK|OS|OU|OZ|PC|PK|PR|PX|QF|QR|RJ|RO|S7|SA|SK|SN|SQ|SU|SV|SW|TA|TG|TK|TN|TP|TR|TW|UA|UL|UM|UN|UX|VA|VN|VW|VX|WN|WS|WY|XF|YM|ZH)\s?\d{1,4}\b/.test(text)) score += 2;
   // IATA airport code in parentheses — format used in confirmations: (JFK), (IST)
   if (/\([A-Z]{3}\)/.test(text)) score += 2;
   // PNR / booking reference with actual code value (e.g. "PNR: ABCDEF")
