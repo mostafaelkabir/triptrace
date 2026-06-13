@@ -5,6 +5,10 @@ import { iataToCountry } from "../utils/iataToCountry.js";
 // Broad date sweep patterns tried in order when parser-specific regex fails.
 // Each entry: [regex-with-capture-group, date-fns-format]
 const GENERIC_DATE_SWEEPS = [
+  // "Wednesday April 03 2024" — weekday prefix, no commas; capture group skips the weekday
+  [/\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*\s+((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}\s+\d{4})\b/i, "MMMM d yyyy"],
+  // "April 03 2024" — month + day + year, no comma or ordinal
+  [/\b((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}\s+\d{4})\b/i, "MMM d yyyy"],
   [/\b(\d{1,2}[.\-\/]\d{1,2}[.\-\/]\d{4})\b/, "dd.MM.yyyy"],        // 15.06.2024 or 15-06-2024
   [/\b(\d{4}[.\-\/]\d{1,2}[.\-\/]\d{1,2})\b/, "yyyy-MM-dd"],        // 2024-06-15
   [/\b(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4})\b/i, "d MMM yyyy"],
@@ -69,6 +73,19 @@ function extractIataFromPipeRows(text) {
 }
 
 /**
+ * Extract IATA codes from "City CODE to City CODE" or "City (CODE) to City (CODE)" patterns.
+ * Handles garbled text where codes appear bare: "Chicago ORD to London LHR"
+ * Returns { originIATA, destinationIATA } or null.
+ */
+function extractIataFromRouteText(text) {
+  // Match "WORD CODE to WORD CODE" or "WORD (CODE) to WORD (CODE)"
+  const routeRe = /\b([A-Z]{3})\s+(?:to|→|-)\s+[A-Za-z ]+?([A-Z]{3})\b/;
+  const m = text.match(routeRe);
+  if (m) return { originIATA: m[1], destinationIATA: m[2] };
+  return null;
+}
+
+/**
  * Apply all extractors in a parser to email text → raw field values.
  */
 function parseEmail(emailText, parser) {
@@ -109,13 +126,22 @@ export function runPipeline(emailText, fromHeader, subjectHeader) {
 
   const raw = parseEmail(emailText, parser);
 
-  // Fallback: extract IATA codes from pipe-table rows when the parser regex missed them.
-  // Handles layouts like: "TK 1 | Istanbul (IST) | New York (JFK) | 14 Mar 2024"
+  // Fallback 1: extract IATA codes from pipe-table rows when parser regex missed them.
+  // Handles: "TK 1 | New York (JFK) | Istanbul (IST) | 14 Mar 2024"
   if (!raw.destinationIATA) {
     const pipeIata = extractIataFromPipeRows(emailText);
     if (pipeIata) {
       raw.destinationIATA = pipeIata.destinationIATA;
       if (!raw.originIATA) raw.originIATA = pipeIata.originIATA;
+    }
+  }
+
+  // Fallback 2: bare-code route text "Chicago ORD to London LHR" (no parentheses)
+  if (!raw.destinationIATA) {
+    const routeIata = extractIataFromRouteText(emailText);
+    if (routeIata) {
+      raw.destinationIATA = routeIata.destinationIATA;
+      if (!raw.originIATA) raw.originIATA = routeIata.originIATA;
     }
   }
 
