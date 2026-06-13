@@ -1,0 +1,58 @@
+TripTrace Non-Commercial License
+Copyright (c) 2024 Mostafa Elkabir
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to use,
+copy, modify, and distribute the Software for NON-COMMERCIAL PURPOSES ONLY,
+subject to the following conditions:
+
+NON-COMMERCIAL USE ONLY
+-----------------------
+"Non-commercial" means you may not use the Software, in whole or in part, to:
+
+  - Offer the Software or any derivative as a paid product or SaaS service
+  - Charge users any fee (subscription, one-time, or usage-based) to access
+    features powered by this Software
+  - Resell, sublicense, or redistribute the Software as part of a commercial
+    product without prior written permission from the copyright holder
+  - Use the Software to generate revenue directly or as part of a revenue-
+    generating workflow operated on behalf of a paying client
+
+PERMITTED USES (no permission required)
+-----------------------------------------
+  - Personal use to build your own N-400 travel history
+  - Learning, academic research, and non-profit immigration assistance
+  - Contributing improvements back to this repository
+  - Running a private instance for yourself or your family
+
+COMMERCIAL LICENSING
+---------------------
+If you wish to use TripTrace commercially — including offering it as a paid
+tool, embedding it in a product, or using it in a law firm or immigration
+consultancy workflow — you must obtain a commercial license. Contact:
+
+  melkabir91@gmail.com
+
+CONDITIONS
+-----------
+1. The above copyright notice and this permission notice shall be included in
+   all copies or substantial portions of the Software.
+
+2. Derivative works must carry this same license and may not remove or weaken
+   the non-commercial restriction.
+
+3. Attribution: any public deployment or fork must clearly credit TripTrace
+   and link to the original repository.
+
+DISCLAIMER
+-----------
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+TripTrace does not provide legal advice. Always verify all travel records
+with a qualified immigration attorney before submitting to USCIS.
