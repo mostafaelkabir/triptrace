@@ -393,4 +393,24 @@ describe("getEmailBody", () => {
     const text = await getEmailBody("tok", "msgId");
     expect(text).toBe("");
   });
+
+  it("correctly decodes UTF-8 multi-byte characters (Turkish, Arabic)", async () => {
+    // "İstanbul" contains a multi-byte UTF-8 character (İ = U+0130, encoded as 0xC4 0xB0).
+    // atob() alone would produce mojibake; TextDecoder must be used.
+    const utf8 = "Sayın yolcumuz, İstanbul uçuşunuz onaylandı.";
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(utf8);
+    // Convert to base64url (the format Gmail API uses)
+    const base64 = btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_");
+
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        payload: { mimeType: "text/plain", body: { data: base64 } },
+      }),
+    });
+    const text = await getEmailBody("tok", "msgId");
+    expect(text).toContain("İstanbul");
+    expect(text).not.toContain("Ä°stanbul"); // mojibake that atob() alone would produce
+  });
 });

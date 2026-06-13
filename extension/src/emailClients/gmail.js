@@ -216,7 +216,10 @@ export function stripHtml(html) {
  */
 function decodeBase64Url(encoded) {
   const base64 = encoded.replace(/-/g, "+").replace(/_/g, "/");
-  return atob(base64);
+  // atob() produces Latin-1, which corrupts multi-byte UTF-8 characters (Turkish, Arabic, etc.).
+  // TextDecoder handles UTF-8 correctly.
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  return new TextDecoder("utf-8").decode(bytes);
 }
 
 /**
