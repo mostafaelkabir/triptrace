@@ -13,14 +13,10 @@ async function apiFetch(path, body) {
   return res.json();
 }
 
-function getLicenseToken() {
-  return window.__triptrace_license_token ?? null;
-}
-
 export async function parseWithAI(emailText, licenseToken) {
   return apiFetch("/parse", {
     email_text: emailText,
-    license_token: licenseToken ?? getLicenseToken(),
+    license_token: licenseToken ?? null,
   });
 }
 
@@ -30,4 +26,13 @@ export async function createCheckout(priceType) {
 
 export async function verifyLicense(token) {
   return apiFetch("/license/verify", { token });
+}
+
+export async function claimLicense(sessionId) {
+  const res = await fetch(`${API_URL}/payments/claim/${encodeURIComponent(sessionId)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.detail ?? `Claim error ${res.status}`);
+  }
+  return res.json();
 }

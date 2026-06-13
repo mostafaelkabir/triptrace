@@ -48,7 +48,6 @@ export function reducer(state, action) {
     case "SET_LICENSE":
       if (action.license && typeof chrome !== "undefined" && chrome.storage) {
         chrome.storage.local.set({ license: action.license });
-        window.__triptrace_license_token = action.license.token;
       }
       return { ...state, license: action.license, showPaywall: false };
 
@@ -199,7 +198,6 @@ export default function App() {
         try {
           const { valid, tier } = await verifyLicense(result.license.token);
           if (valid) {
-            window.__triptrace_license_token = result.license.token;
             dispatch({ type: "SET_LICENSE", license: { tier, token: result.license.token } });
           }
         } catch { /* treat as free */ }
@@ -335,6 +333,7 @@ export default function App() {
             dateRange={state.dateRange}
             isUnlocked={isUnlocked}
             onStartJob={startScanJob}
+            licenseToken={state.license?.token ?? null}
           />
         )}
         {state.step === "export" && <ExportBar trips={state.trips} />}

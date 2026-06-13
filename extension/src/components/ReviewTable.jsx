@@ -391,7 +391,7 @@ function AddProviderPanel({ dateRange, isUnlocked, onStartJob, onClose }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function ReviewTable({ trips, dispatch, accessToken, provider = "gmail", jobs = [], dateRange, isUnlocked = false, onStartJob }) {
+export default function ReviewTable({ trips, dispatch, accessToken, provider = "gmail", jobs = [], dateRange, isUnlocked = false, onStartJob, licenseToken = null }) {
   const [deleteConfirm, setDeleteConfirm]     = useState(null);
   const [aiLoading, setAiLoading]             = useState({});
   const [aiError, setAiError]                 = useState({});
@@ -544,7 +544,7 @@ export default function ReviewTable({ trips, dispatch, accessToken, provider = "
     try {
       const body = await getEmailClient(provider).getEmailBody(accessTokenRef.current, emailId);
       if (!body) throw new Error("Email body was empty");
-      const result = await parseWithAI(body.slice(0, 8000), window.__triptrace_license_token ?? null);
+      const result = await parseWithAI(body.slice(0, 8000), licenseToken);
       if (result?.trips?.[0]) {
         dispatch({
           type: "UPDATE_TRIP",
