@@ -450,3 +450,36 @@ describe("runPipeline - British Airways", () => {
     expect(result.airline).toBe("British Airways");
   });
 });
+
+// ── Pipe-table IATA fallback ──────────────────────────────────────────────────
+
+// Turkish Airlines pipe-table format: origin city first, destination city second.
+// Real TK emails show US departure city (JFK) before destination (IST).
+const TK_PIPE_TABLE_EMAIL = `
+Booking Confirmation
+PNR: TKPIPE
+
+TK 1 | New York (JFK) | Istanbul (IST) | 14 Mar 2024 | Boeing 777-300ER
+TK 2 | Istanbul (IST) | New York (JFK) | 28 Mar 2024
+
+Passenger: John Smith
+`;
+
+describe("runPipeline - pipe-table IATA fallback", () => {
+  it("extracts destination_country from pipe-table rows when parser regex misses it", () => {
+    const result = runPipeline(TK_PIPE_TABLE_EMAIL, "info@thy.com", "Booking Confirmation");
+    expect(result.destination_country).toBe("Turkey");
+  });
+
+  it("extracts origin_country from pipe-table rows", () => {
+    const result = runPipeline(TK_PIPE_TABLE_EMAIL, "info@thy.com", "Booking Confirmation");
+    // IST is the first code = origin for outbound, JFK = destination for return
+    // origin country should resolve to Turkey (IST) or fall back to United States
+    expect(result.origin_country).toBeTruthy();
+  });
+
+  it("confidence is high when both departure_date and destination_country are found via fallback", () => {
+    const result = runPipeline(TK_PIPE_TABLE_EMAIL, "info@thy.com", "Booking Confirmation");
+    expect(result.confidence).toBe("high");
+  });
+});

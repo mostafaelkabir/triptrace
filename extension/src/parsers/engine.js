@@ -55,6 +55,20 @@ function extract(text, regex) {
 }
 
 /**
+ * Extract the first pair of IATA codes from pipe-separated table rows.
+ * Handles layouts like: "TK 1 | Istanbul (IST) | New York (JFK) | 14 Mar 2024"
+ * Returns { originIATA, destinationIATA } or null if no pair found.
+ */
+function extractIataFromPipeRows(text) {
+  const pipeLines = text.split('\n').filter((l) => l.includes('|'));
+  for (const line of pipeLines) {
+    const codes = [...line.matchAll(/\(([A-Z]{3})\)/g)].map((m) => m[1]);
+    if (codes.length >= 2) return { originIATA: codes[0], destinationIATA: codes[1] };
+  }
+  return null;
+}
+
+/**
  * Apply all extractors in a parser to email text → raw field values.
  */
 function parseEmail(emailText, parser) {
@@ -94,6 +108,16 @@ export function runPipeline(emailText, fromHeader, subjectHeader) {
   }
 
   const raw = parseEmail(emailText, parser);
+
+  // Fallback: extract IATA codes from pipe-table rows when the parser regex missed them.
+  // Handles layouts like: "TK 1 | Istanbul (IST) | New York (JFK) | 14 Mar 2024"
+  if (!raw.destinationIATA) {
+    const pipeIata = extractIataFromPipeRows(emailText);
+    if (pipeIata) {
+      raw.destinationIATA = pipeIata.destinationIATA;
+      if (!raw.originIATA) raw.originIATA = pipeIata.originIATA;
+    }
+  }
 
   const formats = [parser.dateFormat, ...(parser.alternateDateFormats ?? [])];
 
