@@ -1,8 +1,17 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Fail fast if JWT_SECRET is missing or too weak — prevents silent license forgery.
+_jwt_secret = os.environ.get("JWT_SECRET", "")
+if len(_jwt_secret) < 32:
+    raise RuntimeError(
+        "JWT_SECRET must be set to a random string of at least 32 characters. "
+        "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+    )
 
 from routes import parse, payments, license  # noqa: E402
 

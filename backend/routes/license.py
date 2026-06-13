@@ -12,7 +12,7 @@ class VerifyRequest(BaseModel):
 
 @router.post("/verify")
 async def verify_license(req: VerifyRequest) -> dict:
-    secret = os.environ.get("JWT_SECRET", "")
+    secret = os.environ["JWT_SECRET"]
     try:
         payload = jwt.decode(req.token, secret, algorithms=["HS256"])
         return {"valid": True, "tier": payload.get("tier", "paid")}
