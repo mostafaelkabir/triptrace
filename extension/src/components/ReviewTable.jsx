@@ -569,7 +569,7 @@ export default function ReviewTable({ trips, dispatch, accessToken, provider = "
     } catch (err) {
       const msg = err.message ?? "";
       // Detect rate-limit / all-providers-exhausted signal from backend
-      if (msg.includes("rate limit") || msg.includes("rate-limit") || msg.includes("503") || msg.includes("unavailable")) {
+      if (msg.includes("rate limit") || msg.includes("rate-limit") || msg.includes("429") || msg.includes("503") || msg.includes("unavailable")) {
         return "rate-limited";
       }
       setAiError((s) => ({ ...s, [idx]: msg }));

@@ -8,7 +8,7 @@ async function apiFetch(path, body) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err?.detail ?? `API error ${res.status}`);
+    throw new Error(err?.detail ?? err?.error ?? `API error ${res.status}`);
   }
   return res.json();
 }
