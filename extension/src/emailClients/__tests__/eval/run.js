@@ -47,7 +47,7 @@ for (const fixture of fixtures) {
   }
 
   // Step 2: body filter
-  const parser = findParser(from);
+  const parser = findParser(from, body);
   const isKnownSender = parser != null;
   const looksLike = looksLikeConfirmation(body, isKnownSender);
 

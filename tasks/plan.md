@@ -1,321 +1,235 @@
-# TripTrace — High-Accuracy AI Parsing Plan
+# TripTrace — Phase E: Usage-Based Pricing (Credit Packs)
 
-## Goal
-Maximize extraction accuracy for all flight fields — including the new `flight_number` and `aircraft_type` fields — while keeping costs manageable. The current setup (Gemini Flash-Lite → Groq llama-3.3-70b → OpenRouter Gemma-2-9b) is ordered cheapest-first, which trades accuracy for cost. For a legal-use product (USCIS N-400), accuracy must come first.
+## Overview
 
----
+Replace the flat "paid / free" license with a **prepaid email-scan credit system**. Users get 100 free AI scans on first install. After that they buy credit packs via Stripe. Pricing is per email scanned.
 
-## Why the Current Setup Falls Short
-
-| Problem | Root cause |
-|---|---|
-| Flight number / aircraft never extracted | Not in the schema or prompt at all |
-| Gemma-2-9b (OpenRouter fallback) misses structured data | Weak instruction following on small open model |
-| Groq llama-3.3-70b is inconsistent on messy HTML | No few-shot examples in the prompt |
-| Table-structured emails lose row/cell context after stripHtml | `\n` insertion is coarse — flight number, seat, date end up on separate lines with no column relationship |
-| Email truncated to 4,000 chars client-side | Some confirmations put the itinerary table in the second half of the email |
-| No caching — same email re-parsed on every "Try AI" click | Wasted API calls |
+The N-400 use case is fundamentally a **one-time event**: file once, scan your inbox once. Subscriptions are wrong for this. Credit packs are right: pay once, done.
 
 ---
 
-## Recommended Model Stack
+## Pricing Model
 
-### Primary: Claude Haiku (`claude-haiku-4-5-20251001`)
-- **Why**: Best structured-extraction accuracy below $1/1M tokens. Natively handles messy HTML artifacts. Tool use forces JSON schema compliance — no parse errors.
-- **Cost**: ~$0.0008 per email (≈3,000 input + 200 output tokens)
-- **Rate limit**: 1,000 RPM on paid tier — no issue for this use case
+| Pack | Emails | Price | Cost (real-world) | Margin |
+|---|---|---|---|---|
+| Free | 100 | $0 | ~$0.05 | — |
+| Starter | 500 | $0.99 | ~$0.25 | 75% |
+| Standard | 2,000 | $2.99 | ~$1.00 | 67% |
+| Pro | 5,000 | $4.99 | ~$2.50 | 50% |
+| Unlimited | 20,000 | $9.99 | ~$10 | breakeven |
 
-### Escalation: Claude Sonnet (`claude-sonnet-4-6`)
-- Called automatically only when Haiku returns `confidence: "low"` on ALL trips or an empty trips array
-- Fires for ~10–15% of emails (complex multi-leg itineraries, heavily encoded tables)
-- Cost: ~$0.009 per email — still cheap given low escalation rate
+Cost basis: ~$0.05/100 emails in real inbox mix (70% regex free, 25% Gemini/Groq free, 5% Haiku/Sonnet paid).
 
-### Free-tier fallback (no Anthropic key): Gemini 2.5 Flash
-- Upgrade from `gemini-2.5-flash-lite` to `gemini-2.5-flash` for better accuracy
-- 15 RPM free — sufficient for manual "Try AI" clicks by free users
-- Keep Groq llama-3.3-70b and OpenRouter as further fallbacks
-
-### Monthly cost estimate
-- 1,000 AI-parsed emails/month (typical paid user): ~$0.80 Haiku + ~$0.12 Sonnet escalation = **~$0.92/user/month**
-- A $19 one-time payment covers ~20 months of AI parsing costs
+**What counts as 1 scan credit:** One email processed through our pipeline. Simple to explain, simple to enforce.
 
 ---
 
-## New Fields: `flight_number` + `aircraft_type`
+## Architecture Decisions
 
-Add to the AI output schema and ReviewTable:
+### Free tier — client-side counter (good enough)
+- `chrome.storage.local` stores `{ freeScansUsed: number }`
+- Before each email in the scan loop, increment counter. At 100 → pause + paywall
+- Server does NOT validate free-tier count. Avoids needing a DB for small numbers
+- Acceptable: spoofing 100 free scans is low-value abuse
 
-| Field | Format | Example |
-|---|---|---|
-| `flight_number` | IATA carrier code + space + numeric | `"TK 1"`, `"AA 123"`, `"LH 400"` |
-| `aircraft_type` | Free text from email | `"Boeing 777-300ER"`, `"Airbus A321neo"` |
+### Paid credits — server-side SQLite (tamper-proof, zero infra)
+- JWT gains two new fields: `jti` (UUID, unique per purchase) + `credits_purchased: 500`
+- Backend stores `(jti, email, credits_purchased, credits_used)` in `credits.db` (SQLite)
+- Each `/parse` call with a credit JWT calls `consume_credit(jti)` → 402 if exhausted
+- SQLite survives backend restarts; no Redis/Postgres needed for v1
+- Old flat `tier: "paid"` JWTs continue to work as unlimited (backward compat)
 
-Both fields are nullable. Both appear as editable columns in ReviewTable and in the CSV export.
+### Credit balance in UI — client-side optimistic counter
+- At claim time: `chrome.storage.local.license.credits_purchased = 500`, `credits_used = 0`
+- Each scan: client increments `credits_used` locally for display
+- Server is authoritative: 402 stops the scan if server count diverges
+- No balance-refresh API needed for v1
+
+### Success page — chrome-extension:// URL
+- Stripe `success_url = chrome-extension://<id>/success.html?session_id=...`
+- Extension sends `chrome.runtime.id` to backend when creating checkout
+- Backend embeds it in `success_url`
+- `success.html` claims JWT, writes to storage, closes tab
 
 ---
 
-## Tasks
+## Dependency Graph
 
-### A1 — Add Claude API provider to `backend/ai_client.py`
-
-**What:** Add `_call_claude(text, model)` using the Anthropic SDK. Insert it as the first provider in `_PROVIDER_CHAIN`.
-
-**Key implementation details:**
-- Use `tool_use` to force structured output — define a tool `record_trips` with a JSON schema. This is more reliable than asking Claude to return raw JSON because the schema is enforced at the API level.
-- Model param defaults to `claude-haiku-4-5-20251001`
-- Temperature 0, max_tokens 1024
-- API key: `ANTHROPIC_API_KEY`
-
-**Tool schema for forced output:**
-```python
-TRIP_TOOL = {
-    "name": "record_trips",
-    "description": "Record all flight trips found in this email",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "trips": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "departure_date":      {"type": ["string","null"]},
-                        "return_date":         {"type": ["string","null"]},
-                        "trip_type":           {"type": ["string","null"], "enum": ["one-way","round-trip",None]},
-                        "origin_country":      {"type": ["string","null"]},
-                        "destination_country": {"type": ["string","null"]},
-                        "airline":             {"type": ["string","null"]},
-                        "flight_number":       {"type": ["string","null"]},
-                        "aircraft_type":       {"type": ["string","null"]},
-                        "confirmation_number": {"type": ["string","null"]},
-                        "passenger_name":      {"type": ["string","null"]},
-                        "confidence":          {"type": "string", "enum": ["high","low"]}
-                    },
-                    "required": ["departure_date","destination_country","confidence"]
-                }
-            }
-        },
-        "required": ["trips"]
-    }
-}
 ```
+E1 (SQLite credits DB + /parse credit check)      ← backend, no deps
+E2 (JWT schema: jti + credits_purchased)          ← depends on E1
+E3 (Stripe: 4 packs + checkout/webhook update)    ← depends on E2
+E4 (scan.js: free-tier counter)                   ← frontend, no deps
+E5 (PaywallModal: pricing grid + balance display) ← depends on E4
+E6 (success.html: claim + activate credits)       ← depends on E3 + E5
+```
+
+---
+
+## Task List
+
+---
+
+### E1 — Backend: SQLite credit tracking
+
+**Description:** Add `backend/credits_db.py` with a SQLite-backed credit ledger. On each `/parse` call with a `tier: "credits"` JWT, check and decrement credits. 402 if exhausted.
 
 **Acceptance criteria:**
-- `ANTHROPIC_API_KEY` set → Claude Haiku is the first provider tried
-- `flight_number` and `aircraft_type` populated when present
-- Response always has valid `trips` array (no JSON parse errors — tool_use guarantees it)
-- `_provider` field returns `"claude-haiku-4-5"`
+- [ ] `credits_db.py`: `init_db()`, `register_pack(jti, email, credits_purchased)`, `consume_credit(jti) -> bool` (True = ok, False = exhausted), `get_balance(jti) -> dict`
+- [ ] `backend/main.py`: calls `init_db()` on startup (creates `credits.db` if missing)
+- [ ] `parse.py`: if JWT `tier == "credits"` → `consume_credit(jti)`. If False → 402. Invalid/expired JWT → fall through to free tier (no block).
+- [ ] `tier: "paid"` JWTs → skip DB entirely (unlimited, existing behavior)
+- [ ] `pytest backend/` passes
+
+**Verification:**
+- Manual: `POST /parse` with JWT having `credits_used == credits_purchased` → 402
+- Manual: restart uvicorn → credits_used preserved (file persists)
+- `pytest backend/` passes
+
+**Files touched:**
+- `backend/credits_db.py` (new, ~50 lines)
+- `backend/routes/parse.py` (~15 lines)
+- `backend/main.py` (~3 lines)
+
+**Estimated scope:** Small
 
 ---
 
-### A2 — Haiku → Sonnet escalation in `extract_trips()`
+### E2 — Backend: JWT schema (jti + credits_purchased)
 
-**What:** After Haiku returns, check if the result is weak. If so, escalate to Sonnet before trying Gemini.
-
-**Logic:**
-```python
-result = await _call_claude(text, model="claude-haiku-4-5-20251001")
-result["_provider"] = "claude-haiku-4-5"
-
-trips = result.get("trips", [])
-all_low = trips and all(t.get("confidence") == "low" for t in trips)
-if not trips or all_low:
-    try:
-        sonnet = await _call_claude(text, model="claude-sonnet-4-6")
-        sonnet["_provider"] = "claude-sonnet-4-6"
-        result = sonnet
-    except Exception:
-        pass  # keep Haiku result, continue waterfall
-```
+**Description:** Update `_issue_license()` to accept `credits_purchased` and `jti`. Update `_get_license_tier()` in `parse.py` to decode and return the `jti` alongside the tier for DB lookup.
 
 **Acceptance criteria:**
-- Email where Haiku returns empty → second call goes to Sonnet
-- Email where Haiku returns `confidence: "high"` on any trip → no escalation
-- `_provider` badge in ReviewTable shows `"claude-haiku-4-5"` or `"claude-sonnet-4-6"` correctly
+- [ ] `_issue_license(email, tier, credits_purchased=None, jti=None)` — adds both to payload when provided
+- [ ] `_get_license_tier(token)` now returns `(tier, jti, credits_purchased)` tuple instead of just `tier`
+- [ ] Old JWTs without `jti` → `jti=None` → treated as unlimited paid
+- [ ] `pytest backend/` passes
+
+**Files touched:**
+- `backend/routes/payments.py` (~10 lines)
+- `backend/routes/parse.py` (~15 lines)
+
+**Estimated scope:** XS
 
 ---
 
-### A3 — Rewrite `SYSTEM_PROMPT` with few-shot examples + new fields
+### E3 — Backend: Stripe credit pack products
 
-**What:** Add explicit extraction rules for `flight_number` and `aircraft_type`, and two concrete few-shot examples showing before/after. The current prompt has no examples — adding even two increases accuracy on novel formats by 30–50% (well-documented in instruction-following literature).
-
-**Flight number extraction rules to add:**
-```
-FLIGHT NUMBER:
-- Format: 2-letter IATA carrier code + space + 1-4 digits: "TK 1", "AA 100", "LH 400", "UA 1234"
-- Appears as: "Flight TK1", "TK 1 Istanbul", "Flight Number: TK 1", "operated by Turkish Airlines TK1"
-- ALWAYS include a space between carrier code and number in output (normalize "TK1" → "TK 1")
-- If multiple flights (outbound + return), extract the OUTBOUND flight number
-
-AIRCRAFT TYPE:
-- Appears as: "Aircraft: Boeing 777-300ER", "Equipment: Airbus A320", "operated on a 737 MAX"
-- Return exactly as written in the email, e.g. "Boeing 777-300ER", "Airbus A321neo"
-- null if not mentioned
-```
-
-**Few-shot examples (2 min, 3 max to stay within token budget):**
-
-Example 1 — Turkish Airlines (clean): shows flight number + aircraft in table row
-Example 2 — Expedia (messy HTML stripped): shows how to handle garbled text, multi-leg, partial info
+**Description:** Replace `price_type: "onetime"|"monthly"` with `pack: "starter"|"standard"|"pro"|"unlimited"`. Four Stripe products, four env vars. Webhook creates a credit JWT with the right `credits_purchased` and registers it in the DB.
 
 **Acceptance criteria:**
-- Prompt stays under 5,000 tokens total (system prompt)
-- `flight_number` extracted from `"TK1"`, `"AA 100"`, `"Flight LH 400"` patterns
-- `aircraft_type` extracted from `"Boeing 737-800"`, `"Airbus A321"` patterns
-- Existing extraction rules (IATA→country table, date formats) unchanged
+- [ ] `CheckoutRequest` now has `pack: str` and `extension_id: str` (for success URL)
+- [ ] Pack → (price env var, credits): `starter→(STRIPE_PRICE_STARTER, 500)`, `standard→(STRIPE_PRICE_STANDARD, 2000)`, `pro→(STRIPE_PRICE_PRO, 5000)`, `unlimited→(STRIPE_PRICE_UNLIMITED, 20000)`
+- [ ] `success_url = f"chrome-extension://{req.extension_id}/success.html?session_id={{CHECKOUT_SESSION_ID}}"`
+- [ ] Webhook: reads `session.metadata.pack`, maps to credits, calls `_issue_license(email, "credits", credits_purchased=N, jti=str(uuid4()))` and `register_pack(jti, email, N)`
+- [ ] `GET /payments/claim/{session_id}` returns `{"token": "...", "credits_purchased": 500, "pack": "starter"}`
+- [ ] Old `STRIPE_PRICE_ONETIME` / `STRIPE_PRICE_MONTHLY` env vars removed from code (but document in `.env.example`)
+
+**Files touched:**
+- `backend/routes/payments.py` (~60 lines changed)
+- `.env.example` (new Stripe env vars)
+
+**Estimated scope:** Small
 
 ---
 
-### A4 — Table-aware HTML preprocessing in `gmail.js`
+### Checkpoint 1
 
-**What:** Add a `preserveTableRows()` step before `stripHtml`. Flight itinerary tables look like:
+- [ ] `pytest backend/` passes
+- [ ] `POST /parse` with exhausted credit JWT → 402 with clear message
+- [ ] `POST /parse` with valid credit JWT → 200, `credits_used` incremented in DB
+- [ ] `POST /parse` with old `tier: "paid"` JWT → 200 (unlimited, no DB)
+- [ ] Restart uvicorn → credits_used value preserved
 
-```html
-<tr>
-  <td>TK 1</td><td>Istanbul (IST)</td><td>New York (JFK)</td>
-  <td>14 Mar 2024 22:15</td><td>Boeing 777-300ER</td>
-</tr>
-```
+---
 
-After current `stripHtml`: `"\nTK 1\nIstanbul (IST)\nNew York (JFK)\n14 Mar 2024 22:15\nBoeing 777-300ER\n"` — model loses the row relationship; `TK 1` looks unrelated to the date.
+### E4 — Frontend: scan loop free-tier counter
 
-After `preserveTableRows()`: `"TK 1 | Istanbul (IST) | New York (JFK) | 14 Mar 2024 22:15 | Boeing 777-300ER"` — one line per row, columns pipe-separated.
-
-**Implementation (add before `stripHtml` call):**
-```js
-function preserveTableRows(html) {
-  return html.replace(/<tr[^>]*>([\s\S]*?)<\/tr>/gi, (_, inner) => {
-    const cells = [];
-    inner.replace(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi, (__, cell) => {
-      const text = cell.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-      if (text) cells.push(text);
-    });
-    return cells.join(" | ") + "\n";
-  });
-}
-```
-
-**File:** `extension/src/emailClients/gmail.js` — call `preserveTableRows(html)` before `stripHtml(html)`.
+**Description:** In `scan.js`, track `freeScansUsed` in `chrome.storage.local`. Each email processed increments the counter. When `>= 100` and no credit JWT → throw `ScanCreditError` that pauses the scan.
 
 **Acceptance criteria:**
-- A Turkish Airlines HTML email with a table itinerary → each flight row appears as one `|`-separated line
-- `looksLikeConfirmation()` still passes on the preprocessed output
-- All existing `gmail.test.js` tests pass
+- [ ] `scan.js`: export `FREE_SCAN_LIMIT = 100`
+- [ ] Each call to `processEmail()` (or equivalent inner loop) reads + increments `freeScansUsed` in `chrome.storage.local`
+- [ ] When limit hit and `licenseToken` is null or not a credit/paid JWT → emit `{ type: "CREDIT_LIMIT", scansUsed: N }` via the progress callback (or throw a typed error)
+- [ ] Paid users (any JWT) → bypass client counter entirely
+- [ ] `freeScansUsed` resets to 0 when a credit JWT is successfully activated (on `SET_LICENSE` with `tier: "credits"`)
+- [ ] `npm test` — all 158 tests pass (add 2 new tests for the credit limit path)
+
+**Files touched:**
+- `extension/src/scan.js` (~30 lines)
+- `extension/src/App.jsx` — pass `licenseToken` through `startScanJob` into scan function; handle `CREDIT_LIMIT` progress event → `SHOW_PAYWALL`
+- `extension/src/__tests__/scan.test.js` — 2 new test cases
+
+**Estimated scope:** Small
 
 ---
 
-### A5 — Increase email send size: 4,000 → 8,000 chars
+### E5 — Frontend: pricing grid + credit balance UI
 
-**What:** Change `body.slice(0, 4000)` → `body.slice(0, 8000)` in `ReviewTable.jsx` where the email body is passed to `parseWithAI()`.
-
-**Why:** United, Delta, and some Expedia confirmations put the full itinerary table below the fold (>4,000 chars). Haiku's 200K context window makes 8,000 chars negligible cost-wise (~500 extra tokens = ~$0.0001).
-
-**File:** `extension/src/components/ReviewTable.jsx`, in `runAIById()`.
+**Description:** Replace PaywallModal's single "Upgrade" button with a 4-pack grid. Show credit balance in ScanStep for credit users and a free-scan counter for free users.
 
 **Acceptance criteria:**
-- Emails >4,000 chars get their itinerary table included
-- No change to backend (it already accepts any length)
+- [ ] `PaywallModal.jsx`: 4 pack cards with name, price, scan count, and "Buy" button. Clicking calls `createCheckout({ pack, extensionId: chrome.runtime.id })`. Recommended pack highlighted (Standard).
+- [ ] Modal trigger message is context-aware: "You've used all 100 free scans" vs "Your credits are exhausted" vs "Upgrade to scan more than 6 months"
+- [ ] `ScanStep.jsx`: shows credit line below date range:
+  - Free user: `"📧 X of 100 free scans used"` (reads from `chrome.storage.local.freeScansUsed`)
+  - Credit user: `"💳 N scans remaining"` (from `state.license.credits_remaining`)
+- [ ] `state.license` now stores `{ tier, token, credits_purchased, credits_used }`. `credits_remaining` = `credits_purchased - credits_used`
+- [ ] Each email scan dispatches `INCREMENT_CREDITS_USED` which increments `state.license.credits_used` and persists to `chrome.storage.local`
+- [ ] `createCheckout` in `api.js` updated to accept `{ pack, extensionId }` instead of `{ price_type }`
+
+**Files touched:**
+- `extension/src/components/PaywallModal.jsx` (~60 lines changed)
+- `extension/src/components/ScanStep.jsx` (~20 lines)
+- `extension/src/App.jsx` — reducer cases `INCREMENT_CREDITS_USED`, updated `SET_LICENSE`
+- `extension/src/api.js` — `createCheckout` signature update
+
+**Estimated scope:** Medium
 
 ---
 
-### A6 — Add `flight_number` and `aircraft_type` to ReviewTable + ExportBar
+### E6 — Frontend: success.html credit activation page
 
-**What:**
-- Two new columns in the review table: **Flight #** and **Aircraft** (after existing "Source" column)
-- `EditableCell` for both — user can manually fill in if AI missed them
-- Add to CSV export in `ExportBar.jsx`
-- Add default `null` values to `ADD_TRIP` action in `App.jsx`
-
-**Column order in CSV:** Country Visited · Departure Date · Return Date · Days Abroad · Flight # · Aircraft · Airline · Confirmation #
+**Description:** Add `success.html` to the extension that Stripe redirects to after purchase. It claims the JWT from the backend, writes it to storage, and closes itself.
 
 **Acceptance criteria:**
-- Columns visible in ReviewTable
-- AI-parsed values appear immediately after "Try AI"
-- Manual editing works
-- CSV includes both fields
+- [ ] `extension/public/success.html`: minimal HTML page with a spinner and status message
+- [ ] `extension/src/success.js`: reads `session_id` from `?session_id=...` URL param → `GET /payments/claim/{session_id}` → writes `{ license: { tier: "credits", token, credits_purchased, credits_used: 0, pack } }` to `chrome.storage.local` → closes tab after 2s
+- [ ] If `session_id` missing or claim fails → shows "Activation failed — contact support@triptrace.app" (does not crash)
+- [ ] If page is opened in a normal browser (no `chrome.storage`) → shows "Please open this in the TripTrace extension"
+- [ ] `manifest.json`: add `success.html` as an entry point (in `web_accessible_resources` if needed, but chrome-extension:// pages don't need it)
+- [ ] `vite.config.js`: add `success` as a second build entry point
+
+**Files touched:**
+- `extension/public/success.html` (new)
+- `extension/src/success.js` (new)
+- `extension/public/manifest.json` — add success.html reference if needed
+- `extension/vite.config.js` — second entry point
+
+**Estimated scope:** Small (2 new files, ~60 lines)
 
 ---
 
-### A7 — Client-side email parse cache (`chrome.storage.local`)
+### Checkpoint 2 (Final)
 
-**What:** Cache the AI parse result per `emailId` so clicking "Try AI" twice doesn't cost 2× API calls.
-
-**Implementation in `ReviewTable.jsx`, `runAIById()`:**
-```js
-const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-async function getCachedResult(emailId) {
-  if (typeof chrome === "undefined" || !chrome.storage) return null;
-  return new Promise((resolve) => {
-    chrome.storage.local.get([`ai_${emailId}`], (r) => {
-      const entry = r[`ai_${emailId}`];
-      if (!entry || Date.now() - entry.ts > CACHE_TTL_MS) return resolve(null);
-      resolve(entry.result);
-    });
-  });
-}
-
-async function setCachedResult(emailId, result) {
-  if (typeof chrome === "undefined" || !chrome.storage) return;
-  chrome.storage.local.set({ [`ai_${emailId}`]: { result, ts: Date.now() } });
-}
-```
-
-Call `getCachedResult` at the top of `runAIById`; call `setCachedResult` after a successful parse.
-
-**Acceptance criteria:**
-- Second "Try AI" click on same row → no network call, instant result
-- Cache expires after 7 days (old entry ignored)
-- Works in non-Chrome environments (dev/test) by returning null gracefully
+- [ ] `pytest backend/` passes
+- [ ] `npm test` — 160+ tests pass
+- [ ] `npm run build` — success.html appears in `dist/`
+- [ ] End-to-end (test mode): install → scan 100 emails → paywall opens → buy Starter → success.html activates 500 credits → ScanStep shows "500 scans remaining" → scan 50 more emails → balance shows "450 remaining"
+- [ ] Backend restart → balance preserved
+- [ ] Old paid JWT still grants unlimited access
 
 ---
 
-### A8 — Update `.env.example` and docs
+## Open Questions (resolve before E6)
 
-**What:**
-- Add `ANTHROPIC_API_KEY=sk-ant-...` to `backend/.env.example` with priority comment
-- Add comment block explaining the provider waterfall and cost estimates
-- Remove stale Nylas variables from `.env.example`
+1. **Extension ID in checkout**: Frontend sends `chrome.runtime.id` in checkout request. Does this work from within the extension popup? Yes — `chrome.runtime.id` is available in all extension contexts including the sidepanel.
 
----
+2. **Credit balance sync**: Client increments `credits_used` locally per scan. Server may diverge if a scan errors mid-way. Is this ok? Yes for v1 — server 402 is the hard stop. Local counter is display only.
 
-## Dependency Order
+3. **What triggers the paywall?**
+   - Free tier: `freeScansUsed >= 100` (client-side, before scan starts email)
+   - Credits: backend 402 (during scan, after email is processed)
+   - Both: `SHOW_PAYWALL` dispatch with a context message
 
-```
-A4 (table preprocessing)   ← no deps, highest ROI, do first
-A5 (8K char limit)         ← no deps, 2-line change
-A3 (prompt rewrite)        ← no deps, do before A1 so Claude gets the improved prompt
-A1 (Claude provider)       ← depends on A3
-A2 (Haiku→Sonnet)          ← depends on A1
-A6 (new table columns)     ← depends on A1 (schema), independent of A2
-A7 (caching)               ← depends on A1
-A8 (docs)                  ← last
-```
-
-**Minimum viable slice (biggest accuracy gain, least code):** A4 → A3 → A1 → A6
-
-**Full plan:** A4 → A5 → A3 → A1 → A2 → A6 → A7 → A8
-
----
-
-## What NOT to Do
-
-| Idea | Why not |
-|---|---|
-| Fine-tune a local model | Requires labeled dataset + GPU. Overkill — Claude Haiku already extracts well. |
-| Use GPT-4o as primary | More expensive than Haiku, no accuracy advantage for structured extraction |
-| Send raw HTML to Claude | 10–50× longer than stripped text; burns tokens on `<style>` and tracking pixels |
-| Per-airline custom prompts | The 8 regex parsers already handle known senders. AI only runs on unmatched/low rows. |
-| Vector DB / RAG | Email bodies are self-contained — no retrieval needed |
-
----
-
-## End-to-End Acceptance Criteria
-
-1. Turkish Airlines email → `flight_number: "TK 1"`, `aircraft_type: "Boeing 777-300ER"`, `confidence: "high"` — all fields populated
-2. Delta HTML table email → flight number extracted, not null
-3. Expedia multi-leg itinerary → `confirmation_number` matches 11-digit itinerary number
-4. Clicking "Try AI" twice → only 1 backend call (cache hit on second)
-5. `ANTHROPIC_API_KEY` not set → falls through to Gemini → Groq waterfall (regression safe)
-6. All 142 existing tests pass
-7. `npm run build` clean
+4. **Unlimited pack ceiling**: 20,000 emails sounds like "unlimited" to most users. But a truly unlimited pack could be a liability. Keep the 20,000 cap server-side; market it as "Unlimited" since 99% of users will never hit 20k flight emails.

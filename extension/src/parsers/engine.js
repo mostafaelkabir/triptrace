@@ -34,18 +34,40 @@ function genericDateSweep(text) {
 }
 
 /**
+ * Extract the original sender email from a forwarded message body.
+ * Matches "From: address@domain.com" or "From: Name <address@domain.com>"
+ * that appears inside the body (not the outer email header).
+ */
+function extractForwardedSender(text) {
+  const m = text.match(/^From:\s*(?:[^<\n]*<)?([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})>?\s*$/im);
+  return m ? m[1].trim() : null;
+}
+
+/**
  * Find a parser whose senderDomains match the From header.
+ * When the outer sender is a personal address (e.g. user@gmail.com),
+ * scans the body for a forwarded airline sender and retries.
  * @param {string} fromHeader - e.g. "noreply@thy.com" or "Name <booking@thy.com>"
+ * @param {string} [bodyText] - email body to scan for forwarded sender
  * @returns {object|null}
  */
-export function findParser(fromHeader) {
+export function findParser(fromHeader, bodyText = "") {
   if (!fromHeader) return null;
   const lower = fromHeader.toLowerCase();
-  return (
-    parsers.find((p) =>
-      p.senderDomains.some((domain) => lower.includes(domain.toLowerCase()))
-    ) ?? null
+  const direct = parsers.find((p) =>
+    p.senderDomains.some((domain) => lower.includes(domain.toLowerCase()))
   );
+  if (direct) return direct;
+
+  // Forwarded email: scan body for the original airline sender
+  const forwardedFrom = extractForwardedSender(bodyText ?? "");
+  if (forwardedFrom) {
+    const fwd = forwardedFrom.toLowerCase();
+    return parsers.find((p) =>
+      p.senderDomains.some((domain) => fwd.includes(domain.toLowerCase()))
+    ) ?? null;
+  }
+  return null;
 }
 
 /**
@@ -106,7 +128,7 @@ function parseEmail(emailText, parser) {
  * @returns {TripRecord}
  */
 export function runPipeline(emailText, fromHeader, subjectHeader) {
-  const parser = findParser(fromHeader);
+  const parser = findParser(fromHeader, emailText);
 
   if (!parser) {
     return {
@@ -162,9 +184,7 @@ export function runPipeline(emailText, fromHeader, subjectHeader) {
   const destinationCountry = raw.destinationIATA
     ? iataToCountry(raw.destinationIATA)
     : null;
-  const originCountry = raw.originIATA
-    ? iataToCountry(raw.originIATA)
-    : "United States"; // safe default for US-based users
+  const originCountry = iataToCountry(raw.originIATA) ?? "United States";
 
   // Detect trip type from email text signals
   const hasReturnSignal = /\b(?:return\s+flight|return\s+(?:depart|trip)|round.?trip|inbound|return\s+journey)\b/i.test(emailText);

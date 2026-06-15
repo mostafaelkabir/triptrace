@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TripTrace — Activating your pass</title>
+  <style>
+    body { font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f9fafb; color: #1f2937; }
+    .card { background: white; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,.08); padding: 32px 28px; max-width: 320px; width: 100%; text-align: center; }
+    .icon { font-size: 2.5rem; margin-bottom: 12px; }
+    h1 { font-size: 1.1rem; font-weight: 600; margin: 0 0 8px; }
+    p { font-size: 0.85rem; color: #6b7280; margin: 0; line-height: 1.5; }
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; animation: spin .8s linear infinite; margin-bottom: 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div id="root">
+      <div class="spinner"></div>
+      <h1>Activating your pass…</h1>
+      <p>Please wait while we activate your TripTrace scan pass.</p>
+    </div>
+  </div>
+  <script>
+    const API_URL = "http://localhost:8000";
+
+    async function activate() {
+      const params = new URLSearchParams(window.location.search);
+      const sessionId = params.get("session_id");
+      const root = document.getElementById("root");
+
+      if (!sessionId) {
+        root.innerHTML = '<div class="icon">⚠️</div><h1>Activation failed</h1><p>No session ID found. Please contact support@triptrace.app.</p>';
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_URL}/payments/claim/${encodeURIComponent(sessionId)}`);
+        if (!res.ok) throw new Error("Claim failed");
+        const data = await res.json();
+
+        // Write license to chrome.storage so the extension picks it up on next open
+        if (typeof chrome !== "undefined" && chrome.storage) {
+          await chrome.storage.local.set({
+            license: {
+              tier: data.tier ?? "paid",
+              token: data.token,
+              months_allowed: data.months_allowed ?? 60,
+            }
+          });
+          root.innerHTML = `<div class="icon">✅</div><h1>Full 5-year history unlocked!</h1><p>You can close this tab and return to TripTrace to start scanning.</p>`;
+          setTimeout(() => window.close(), 3000);
+        } else {
+          root.innerHTML = '<div class="icon">✅</div><h1>Purchase confirmed!</h1><p>Open TripTrace in Chrome to start scanning.</p>';
+        }
+      } catch (err) {
+        root.innerHTML = '<div class="icon">⚠️</div><h1>Activation failed</h1><p>Please contact support@triptrace.app with your order confirmation.</p>';
+      }
+    }
+
+    activate();
+  </script>
+</body>
+</html>

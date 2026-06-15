@@ -20,8 +20,8 @@ export async function parseWithAI(emailText, licenseToken) {
   });
 }
 
-export async function createCheckout(priceType) {
-  return apiFetch("/payments/checkout", { price_type: priceType });
+export async function createCheckout(_pack = "fullhistory", extensionId = "") {
+  return apiFetch("/payments/checkout", { extension_id: extensionId });
 }
 
 export async function verifyLicense(token) {

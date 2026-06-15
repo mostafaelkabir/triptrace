@@ -17,6 +17,9 @@ if len(_jwt_secret) < 32:
     )
 
 from routes import parse, payments, license  # noqa: E402
+from credits_db import init_db  # noqa: E402
+
+init_db()
 
 limiter = Limiter(key_func=get_remote_address)
 

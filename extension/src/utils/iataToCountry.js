@@ -45,7 +45,7 @@ const IATA_MAP = {
   YYT: "Canada", YYZ: "Canada",
 
   // ── Mexico ───────────────────────────────────────────────────────────────────
-  ACA: "Mexico", BJX: "Mexico", BOG: "Colombia", CJS: "Mexico",
+  ACA: "Mexico", BJX: "Mexico", BOG: "Colombia", MDE: "Colombia", CJS: "Mexico",
   CUL: "Mexico", CUN: "Mexico", GDL: "Mexico", HMO: "Mexico",
   HUX: "Mexico", MEX: "Mexico", MID: "Mexico", MLM: "Mexico",
   MTY: "Mexico", MZT: "Mexico", OAX: "Mexico", PBC: "Mexico",
@@ -61,7 +61,7 @@ const IATA_MAP = {
   PAP: "Haiti", PLS: "Turks and Caicos Islands", POS: "Trinidad and Tobago",
   PTP: "Guadeloupe", PUJ: "Dominican Republic", SAL: "El Salvador",
   SAP: "Honduras", SDQ: "Dominican Republic", SKB: "Saint Kitts and Nevis",
-  SJO: "Costa Rica", STO: "Guatemala", SXM: "Sint Maarten",
+  GUA: "Guatemala", PTY: "Panama", SJO: "Costa Rica", STO: "Guatemala", SXM: "Sint Maarten",
   TGU: "Honduras", UVF: "Saint Lucia", VVI: "Bolivia",
 
   // ── South America ────────────────────────────────────────────────────────────
@@ -273,7 +273,7 @@ const IATA_MAP = {
   // Malaysia
   BKI: "Malaysia", IPH: "Malaysia", JHB: "Malaysia", KBR: "Malaysia",
   KCH: "Malaysia", KUL: "Malaysia", LGK: "Malaysia", MKZ: "Malaysia",
-  PEN: "Malaysia", TGG: "Malaysia",
+  PEN: "Malaysia", SZB: "Malaysia", TGG: "Malaysia",
   // Singapore
   SIN: "Singapore",
   // Indonesia
