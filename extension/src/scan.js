@@ -5,6 +5,11 @@ import { subjectIsHardReject } from "./emailClients/gmail.js";
 
 const BATCH_SIZE = 10;
 
+function _buildSnippet(body) {
+  if (!body) return "";
+  return body.trim().slice(0, 300);
+}
+
 /**
  * Count non-null meaningful fields in a trip record.
  */
@@ -130,14 +135,14 @@ export async function scanGmail(accessToken, options, onProgress) {
 
           let trip = null;
           if (parser) {
-            trip = { ...runPipeline(body, headers.from, headers.subject), _emailId: id, _threadId: threadId, _from: headers.from, _subject: headers.subject };
+            trip = { ...runPipeline(body, headers.from, headers.subject), _emailId: id, _threadId: threadId, _from: headers.from, _subject: headers.subject, _snippet: _buildSnippet(body) };
           } else {
             trip = {
               departure_date: null, return_date: null,
               origin_country: null, destination_country: null,
               airline: null, confirmation_number: null,
               confidence: "unmatched",
-              _emailId: id, _threadId: threadId, _from: headers.from, _subject: headers.subject,
+              _emailId: id, _threadId: threadId, _from: headers.from, _subject: headers.subject, _snippet: _buildSnippet(body),
             };
           }
 
@@ -172,7 +177,7 @@ export async function scanEmlFiles(files, onProgress) {
     if (parser) {
       return {
         ...runPipeline(body, from, subject),
-        _from: from, _subject: subject, _fileName,
+        _from: from, _subject: subject, _fileName, _snippet: _buildSnippet(body),
       };
     }
     return {
@@ -181,7 +186,7 @@ export async function scanEmlFiles(files, onProgress) {
       airline: null, confirmation_number: null,
       confidence: "unmatched",
       _missingFields: ["departure_date", "destination_country", "return_date"],
-      _from: from, _subject: subject, _fileName,
+      _from: from, _subject: subject, _fileName, _snippet: _buildSnippet(body),
     };
   });
 

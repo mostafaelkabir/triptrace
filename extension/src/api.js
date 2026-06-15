@@ -8,7 +8,7 @@ async function apiFetch(path, body) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err?.detail ?? `API error ${res.status}`);
+    throw new Error(err?.detail ?? err?.error ?? `API error ${res.status}`);
   }
   return res.json();
 }
@@ -20,8 +20,8 @@ export async function parseWithAI(emailText, licenseToken) {
   });
 }
 
-export async function createCheckout(priceType) {
-  return apiFetch("/payments/checkout", { price_type: priceType });
+export async function createCheckout(_pack = "fullhistory", extensionId = "") {
+  return apiFetch("/payments/checkout", { extension_id: extensionId });
 }
 
 export async function verifyLicense(token) {

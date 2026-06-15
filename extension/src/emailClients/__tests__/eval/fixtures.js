@@ -884,4 +884,269 @@ Expedia customer support: 1-800-EXPEDIA
     `,
     expected: { is_flight: true, departure_date: "2024-03-21", destination_country: "Japan", flight_number: "JL 006" },
   },
+
+  // ── ACC-F1: 15 new fixtures ────────────────────────────────────────────────
+
+  {
+    id: "connection-flight",
+    from: "noreply@thy.com",
+    subject: "E-Ticket - PNR TRK123",
+    body: `
+E-Ticket Itinerary
+PNR: TRK123
+Passenger: Ali Hassan
+
+Leg 1: JFK → FRA | TK 9  | 05 Apr 2024 21:30
+Leg 2: FRA → IST | TK 1791| 06 Apr 2024 10:15
+Aircraft: Boeing 777
+Booking reference: TRK123
+    `,
+    expected: { is_flight: true, departure_date: "2024-04-05", destination_country: null, flight_number: "TK 9" },
+  },
+
+  {
+    id: "codeshare-marketed",
+    from: "customercare@aa.com",
+    subject: "Your American Airlines booking confirmation",
+    body: `
+Your Booking is Confirmed
+Record locator: CODESH
+
+Passenger: Robert Green
+AA 6999 (operated by British Airways)
+New York (JFK) → London (LHR)
+Departure: March 12, 2024 at 10:45 PM
+    `,
+    expected: { is_flight: true, departure_date: "2024-03-12", destination_country: null, flight_number: "AA 6999" },
+  },
+
+  {
+    id: "ryanair-no-iata",
+    from: "noreply@ryanair.com",
+    subject: "Booking Confirmation",
+    body: `
+Booking Confirmed — ref RYRB5678
+Passenger: Sophie Martin
+
+Flight FR 1234
+Route: Dublin to Barcelona
+Saturday 15 June 2024 — Departure 06:25
+Arrive 09:40 local time
+    `,
+    expected: { is_flight: false, departure_date: null, destination_country: null, flight_number: null },
+  },
+
+  {
+    id: "hotel-plus-flight",
+    from: "noreply@airfrance.fr",
+    subject: "Your trip to Paris — hotel + flight",
+    body: `
+Trip Confirmation — Paris, France
+Booking ID: HTL-FLT-9988
+
+FLIGHT
+Air France AF 007 | New York (JFK) → Paris (CDG)
+Departure: April 20, 2024 | 09:00
+
+HOTEL
+Hotel Le Marais, Paris
+Check-in: April 20, 2024 | Check-out: April 27, 2024
+Room: Deluxe Double — $240/night
+    `,
+    expected: { is_flight: true, departure_date: "2024-04-20", destination_country: "France", flight_number: null },
+  },
+
+  {
+    id: "seat-upgrade",
+    from: "no-reply@delta.com",
+    subject: "You've been upgraded to First Class",
+    body: `
+Congratulations! You've been upgraded to First Class based on your Medallion Elite status.
+Your new boarding pass will be issued automatically at check-in.
+No action required. Enjoy your flight!
+    `,
+    expected: { is_flight: false, departure_date: null, destination_country: null, flight_number: null },
+  },
+
+  {
+    id: "checkin-reminder",
+    from: "checkin@united.com",
+    subject: "Check-in now open for your flight tomorrow",
+    body: `
+Your check-in window is now open!
+Log in to united.com or use the United app to check in and choose your seat.
+Online check-in closes 60 minutes before departure.
+Have a great trip!
+    `,
+    expected: { is_flight: false, departure_date: null, destination_country: null, flight_number: null },
+  },
+
+  {
+    id: "bookingcom-flights",
+    from: "noreply@booking.com",
+    subject: "Your flight to Istanbul is confirmed",
+    body: `
+Your flight booking is confirmed.
+Booking number: BDC-889921
+
+Passenger: Maria Garcia
+
+EK 101 | New York (JFK) → Dubai (DXB) | 18 May 2024 | 23:05
+EK 103 | Dubai (DXB) → Istanbul (IST)  | 19 May 2024 | 09:30
+
+Confirmation sent to: maria@example.com
+    `,
+    expected: { is_flight: true, departure_date: "2024-05-18", destination_country: null, flight_number: "EK 101" },
+  },
+
+  {
+    id: "tripcom-itinerary",
+    from: "ticket@singaporeair.com",
+    subject: "Singapore Airlines — Flight Booking Confirmed",
+    body: `
+Order Number: SQ-20240912-5678
+Flight Booking Confirmed
+
+Outbound
+SQ 37 | Los Angeles (LAX) → Singapore (SIN)
+Departure: 12 Sep 2024 23:45  Arrival: 14 Sep 2024 07:00
+
+Passenger: James Wong
+Adult × 1
+    `,
+    expected: { is_flight: true, departure_date: "2024-09-12", destination_country: "Singapore", flight_number: "SQ 37" },
+  },
+
+  {
+    id: "two-passengers",
+    from: "confirmation@kayak.com",
+    subject: "Flight to Rome — 2 passengers confirmed",
+    body: `
+Booking Confirmed — 2 Passengers
+Confirmation: KYK-554321
+
+Passengers:
+1. David Kim
+2. Sarah Kim
+
+AZ 606 | New York (JFK) → Rome (FCO)
+Departure: July 4, 2024
+Economy | 2 seats
+    `,
+    expected: { is_flight: true, departure_date: "2024-07-04", destination_country: "Italy", flight_number: null },
+  },
+
+  {
+    id: "infant-on-ticket",
+    from: "confirm@emirates.com",
+    subject: "Emirates booking EK55X — Adult + Infant",
+    body: `
+Booking Reference: EK55XINF
+Passengers:
+  Adult — Fatima Al-Rashid
+  Infant (lap) — Yusuf Al-Rashid (11 months)
+
+EK 202 | New York (JFK) → Dubai (DXB)
+Date: August 10, 2024
+Departure: 23:00
+    `,
+    expected: { is_flight: true, departure_date: "2024-08-10", destination_country: "United Arab Emirates", flight_number: "EK 202" },
+  },
+
+  {
+    id: "sparse-see-pdf",
+    from: "tickets@airtickets.com",
+    subject: "Your e-ticket is attached",
+    body: `
+Dear Passenger,
+
+Please find your e-ticket attached to this email as a PDF.
+All booking details are contained in the attachment.
+
+Booking reference: ATP-99871
+    `,
+    expected: { is_flight: false, departure_date: null, destination_country: null, flight_number: null },
+  },
+
+  {
+    id: "amtrak-rail",
+    from: "noreply@amtrak.com",
+    subject: "Amtrak eTicket — Acela Express",
+    body: `
+Amtrak Booking Confirmation
+Reservation Number: 1234567
+
+Acela Express | Train 2154
+New York Penn Station → Washington Union Station
+Departure: May 20, 2024 at 7:00 AM
+Business Class | Seat 12C
+
+Passenger: Thomas Brady
+    `,
+    expected: { is_flight: false, departure_date: null, destination_country: null, flight_number: null },
+  },
+
+  {
+    id: "cruise-ship",
+    from: "reservations@carnival.com",
+    subject: "Carnival Cruise Line — Booking Confirmation",
+    body: `
+BOOKING CONFIRMATION
+Reservation #: CCL-8821099
+
+Carnival Horizon — 7-Day Caribbean Cruise
+Sail Date: November 3, 2024
+Embarkation: Miami (Port of Miami)
+Ports of Call: Nassau, Grand Turk, Amber Cove, La Romana
+
+Stateroom: Ocean View, Deck 6
+Guests: 2 adults
+    `,
+    expected: { is_flight: false, departure_date: null, destination_country: null, flight_number: null },
+  },
+
+  {
+    id: "forwarded-gmail-noise",
+    from: "friend@gmail.com",
+    subject: "Fwd: Your Qatar Airways booking QR55Z",
+    body: `
+---------- Forwarded message ---------
+From: noreply@qatarairways.com
+Subject: Your Qatar Airways booking QR55Z
+To: traveler@gmail.com
+
+Booking Confirmation
+Booking Reference: QR55Z
+Passenger: Carlos Mendez
+
+QR 702 | New York (JFK) → Doha (DOH)
+Departure: February 14, 2024 | 22:15
+Economy Class
+    `,
+    expected: { is_flight: true, departure_date: "2024-02-14", destination_country: "Qatar", flight_number: "QR 702" },
+  },
+
+  {
+    id: "mileage-statement",
+    from: "memberservices@aadvantage.com",
+    subject: "Your January AAdvantage Statement",
+    body: `
+AAdvantage Member Statement — January 2024
+Account: 1234567890
+Member: Patricia Chen
+Status: Gold
+
+Miles earned this month: 8,450
+Miles redeemed: 0
+Current balance: 127,340 miles
+
+Earning activity:
+Jan 5  AA 100 JFK→LHR   3,450 miles
+Jan 5  AA 101 LHR→JFK   3,450 miles
+Jan 18 Shopping partner   1,550 miles
+
+Miles expire: Never (active account)
+    `,
+    expected: { is_flight: false, departure_date: null, destination_country: null, flight_number: null },
+  },
 ];

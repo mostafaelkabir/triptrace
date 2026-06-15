@@ -26,6 +26,7 @@ const initialState = {
   license: null,
   devMode: false,
   trips: [],
+  removedTrips: [],   // trips AI classified as non-flights, kept for review
   jobs: [],           // [{ id, provider, token, status, progress, error }]
   dateRange: getDefaultDateRange(),
   showPaywall: false,
@@ -86,6 +87,22 @@ export function reducer(state, action) {
 
     case "DELETE_TRIP":
       return { ...state, trips: state.trips.filter((_, i) => i !== action.index) };
+
+    case "ADD_REMOVED_TRIP":
+      return { ...state, removedTrips: [...state.removedTrips, action.trip] };
+
+    case "RESTORE_REMOVED_TRIP": {
+      const restored = state.removedTrips[action.index];
+      if (!restored) return state;
+      return {
+        ...state,
+        removedTrips: state.removedTrips.filter((_, i) => i !== action.index),
+        trips: [...state.trips, { ...restored, _removedByAI: false, confidence: "manual", confirmed: false }],
+      };
+    }
+
+    case "DISMISS_REMOVED_TRIP":
+      return { ...state, removedTrips: state.removedTrips.filter((_, i) => i !== action.index) };
 
     case "CONFIRM_TRIP":
       return { ...state, trips: state.trips.map((t, i) => i === action.index ? { ...t, confirmed: !t.confirmed } : t) };
@@ -169,7 +186,9 @@ export function reducer(state, action) {
     case "SET_DATE_RANGE":
       return { ...state, dateRange: action.dateRange };
     case "SHOW_PAYWALL":
-      return { ...state, showPaywall: true };
+      return { ...state, showPaywall: true, paywallReason: action.reason ?? "trip-limit" };
+    case "INCREMENT_SCAN_COUNT":
+      return { ...state, scanCount: (state.scanCount ?? 0) + 1 };
     case "HIDE_PAYWALL":
       return { ...state, showPaywall: false };
     case "GO_TO_EXPORT":
@@ -196,9 +215,9 @@ export default function App() {
       }
       if (result.license?.token) {
         try {
-          const { valid, tier } = await verifyLicense(result.license.token);
+          const { valid, tier, months_allowed } = await verifyLicense(result.license.token);
           if (valid) {
-            dispatch({ type: "SET_LICENSE", license: { tier, token: result.license.token } });
+            dispatch({ type: "SET_LICENSE", license: { tier, token: result.license.token, months_allowed: months_allowed ?? 60 } });
           }
         } catch { /* treat as free */ }
       }
@@ -225,7 +244,7 @@ export default function App() {
         {
           startDate: dateRange.startDate,
           endDate: dateRange.endDate,
-          paywallLimit: isUnlocked ? null : FREE_TRIP_LIMIT,
+          paywallLimit: null,   // no trip-count limit — date range is the only gate
           provider,
         },
         (p) => {
@@ -316,16 +335,18 @@ export default function App() {
             accessToken={state.accessToken}
             provider={state.provider}
             dateRange={state.dateRange}
+            monthsAllowed={state.license?.months_allowed ?? (isUnlocked ? 60 : 6)}
             isPaid={isPaid}
             isDevMode={state.devMode}
-            freeTripLimit={FREE_TRIP_LIMIT}
             dispatch={dispatch}
             onStartJob={startScanJob}
+            activeJobs={state.jobs}
           />
         )}
         {(state.step === "review" || state.step === "export") && (
           <ReviewTable
             trips={state.trips}
+            removedTrips={state.removedTrips}
             dispatch={dispatch}
             accessToken={state.accessToken}
             provider={state.provider}
@@ -339,7 +360,7 @@ export default function App() {
         {state.step === "export" && <ExportBar trips={state.trips} />}
       </main>
 
-      {state.showPaywall && <PaywallModal dispatch={dispatch} license={state.license} />}
+      {state.showPaywall && <PaywallModal dispatch={dispatch} license={state.license} reason={state.paywallReason ?? "trip-limit"} />}
 
       <footer className="border-t border-gray-200 bg-white px-4 py-2 text-xs text-gray-400 leading-snug">
         TripTrace does not provide legal advice. Always verify all records with a qualified immigration attorney before submitting to USCIS.

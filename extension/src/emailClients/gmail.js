@@ -6,22 +6,31 @@ function authHeaders(token) {
 
 async function gmailFetch(token, url) {
   const res = await fetch(url, { headers: authHeaders(token) });
-  if (res.status === 401) {
-    // Token is expired/revoked — ask the background to refresh it
-    const refreshed = await new Promise((resolve) => {
-      chrome.runtime.sendMessage({ type: "REFRESH_AUTH_TOKEN" }, resolve);
-    });
-    if (refreshed?.token) {
-      // Retry once with the new token
-      const res2 = await fetch(url, { headers: authHeaders(refreshed.token) });
-      if (!res2.ok) {
-        const err = await res2.json().catch(() => ({}));
-        throw new Error(err?.error?.message ?? `Gmail API error ${res2.status}`);
+  const needsRefresh = res.status === 401 || (res.status === 400 && res.headers.get("content-type")?.includes("json"));
+
+  if (needsRefresh) {
+    // Check if it's actually a token error before spending a refresh round-trip
+    const errBody = res.status === 400 ? await res.json().catch(() => ({})) : {};
+    const errMsg = errBody?.error?.message ?? "";
+    if (res.status === 401 || errMsg.includes("IDX14100") || errMsg.includes("invalid_grant") || errMsg.includes("JWT")) {
+      // Token is expired/revoked — ask the background to refresh it
+      const refreshed = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({ type: "REFRESH_AUTH_TOKEN" }, resolve);
+      });
+      if (refreshed?.token) {
+        const res2 = await fetch(url, { headers: authHeaders(refreshed.token) });
+        if (!res2.ok) {
+          const err2 = await res2.json().catch(() => ({}));
+          throw new Error(err2?.error?.message ?? `Gmail API error ${res2.status}`);
+        }
+        return res2.json();
       }
-      return res2.json();
+      throw new Error("401 auth");
     }
-    throw new Error("401 auth");
+    // 400 but not a token error — fall through to generic error
+    throw new Error(errMsg || `Gmail API error ${res.status}`);
   }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err?.error?.message ?? `Gmail API error ${res.status}`);

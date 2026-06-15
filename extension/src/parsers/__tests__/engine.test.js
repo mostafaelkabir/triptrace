@@ -471,15 +471,90 @@ describe("runPipeline - pipe-table IATA fallback", () => {
     expect(result.destination_country).toBe("Turkey");
   });
 
-  it("extracts origin_country from pipe-table rows", () => {
+  it("resolves origin_country to United States when origin IATA is JFK", () => {
+    // TK_PIPE_TABLE_EMAIL: JFK | IST — origin is JFK → United States
     const result = runPipeline(TK_PIPE_TABLE_EMAIL, "info@thy.com", "Booking Confirmation");
-    // IST is the first code = origin for outbound, JFK = destination for return
-    // origin country should resolve to Turkey (IST) or fall back to United States
-    expect(result.origin_country).toBeTruthy();
+    expect(result.origin_country).toBe("United States");
   });
 
   it("confidence is high when both departure_date and destination_country are found via fallback", () => {
     const result = runPipeline(TK_PIPE_TABLE_EMAIL, "info@thy.com", "Booking Confirmation");
     expect(result.confidence).toBe("high");
+  });
+});
+
+// ── Forwarded email re-sender detection ──────────────────────────────────────
+
+const FORWARDED_TK_EMAIL = `
+---------- Forwarded message ---------
+From: noreply@thy.com
+Date: Wed, Mar 13, 2024
+Subject: Booking Confirmation
+
+PNR: XYZABC
+Passenger: Forwarded User
+
+TK 1 | New York (JFK) | Istanbul (IST) | 14 Mar 2024
+`;
+
+describe("findParser - forwarded email re-sender detection", () => {
+  it("returns null when sender is gmail.com and no body given", () => {
+    const parser = findParser("user@gmail.com");
+    expect(parser).toBeNull();
+  });
+
+  it("finds Turkish Airlines parser from body when outer sender is gmail.com", () => {
+    const parser = findParser("user@gmail.com", FORWARDED_TK_EMAIL);
+    expect(parser).not.toBeNull();
+    expect(parser.id).toBe("turkish-airlines");
+  });
+
+  it("direct sender still takes priority over forwarded body", () => {
+    const parser = findParser("bookingconfirmation@thy.com", FORWARDED_TK_EMAIL);
+    expect(parser).not.toBeNull();
+    expect(parser.id).toBe("turkish-airlines");
+  });
+
+  it("runPipeline extracts destination_country from forwarded email", () => {
+    const result = runPipeline(FORWARDED_TK_EMAIL, "user@gmail.com", "Fwd: Your flight confirmation");
+    expect(result.destination_country).toBe("Turkey");
+  });
+
+  it("runPipeline extracts departure_date from forwarded email", () => {
+    const result = runPipeline(FORWARDED_TK_EMAIL, "user@gmail.com", "Fwd: Your flight confirmation");
+    expect(result.departure_date).toBe("2024-03-14");
+  });
+});
+
+// ── origin_country IATA resolution ──────────────────────────────────────────
+
+const IST_TO_JFK = `
+PNR: RETURN1
+Passenger: Return User
+
+TK 2 | Istanbul (IST) | New York (JFK) | 28 Mar 2024
+`;
+
+const NO_IATA_EMAIL = `
+PNR: NOIATA
+Booking Reference: NOIATA1
+Flight to Istanbul on 14 Mar 2024
+Departure time: 09:30
+`;
+
+describe("runPipeline - origin_country IATA resolution", () => {
+  it("resolves origin_country to Turkey when origin IATA is IST", () => {
+    const result = runPipeline(IST_TO_JFK, "noreply@thy.com", "Booking Confirmation");
+    expect(result.origin_country).toBe("Turkey");
+  });
+
+  it("resolves destination_country to United States when destination IATA is JFK", () => {
+    const result = runPipeline(IST_TO_JFK, "noreply@thy.com", "Booking Confirmation");
+    expect(result.destination_country).toBe("United States");
+  });
+
+  it("falls back to United States when no origin IATA is found", () => {
+    const result = runPipeline(NO_IATA_EMAIL, "noreply@thy.com", "Booking Confirmation");
+    expect(result.origin_country).toBe("United States");
   });
 });

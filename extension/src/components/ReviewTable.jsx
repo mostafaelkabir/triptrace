@@ -79,6 +79,23 @@ function buildGroupedView(trips) {
   return order;
 }
 
+// ── Needs-review helper (exported for tests) ──────────────────────────────────
+
+export function tripNeedsReview(trip) {
+  if (trip.confirmed) return false;
+  return !!(trip._needs_review || !trip.departure_date || !trip.destination_country);
+}
+
+export function buildSnippet(body) {
+  if (!body) return "";
+  return body.trim().slice(0, 300);
+}
+
+export function snippetShouldShow(trip) {
+  if (trip.confirmed) return false;
+  return !!(trip._needs_review && trip._snippet);
+}
+
 // ── Confidence badge styles ───────────────────────────────────────────────────
 
 const CONFIDENCE_BADGE = {
@@ -406,6 +423,8 @@ export default function ReviewTable({ trips, dispatch, accessToken, provider = "
   const [queueStatus, setQueueStatus]         = useState(null);
   const [hasFailedRows, setHasFailedRows]     = useState(false);
   const [showAddProvider, setShowAddProvider] = useState(false);
+  const [removedCount, setRemovedCount]       = useState(0);
+  const [showRemovedBanner, setShowRemovedBanner] = useState(false);
 
   // Keep accessToken in a ref so the async queue always reads the latest value
   const accessTokenRef = useRef(accessToken);
@@ -544,7 +563,7 @@ export default function ReviewTable({ trips, dispatch, accessToken, provider = "
     try {
       const body = await getEmailClient(provider).getEmailBody(accessTokenRef.current, emailId);
       if (!body) throw new Error("Email body was empty");
-      const result = await parseWithAI(body.slice(0, 8000), licenseToken);
+      const result = await parseWithAI(body, licenseToken);
       if (result?.trips?.[0]) {
         dispatch({
           type: "UPDATE_TRIP",
@@ -554,14 +573,16 @@ export default function ReviewTable({ trips, dispatch, accessToken, provider = "
             confidence: "ai-assisted",
             confirmed: false,
             _aiProvider: result._provider ?? null,
+            _verified: result._verified ?? false,
           },
         });
         return "success";
       }
-      // Claude classified this as not a flight booking — show the specific reason
+      // AI classified this as not a flight booking — auto-remove the row
       if (result?.is_confirmed_flight_booking === false) {
-        const reason = result.rejection_reason ?? "not a flight booking";
-        dispatch({ type: "UPDATE_TRIP", index: idx, fields: { confidence: "rejected", _rejectedReason: reason } });
+        dispatch({ type: "DELETE_TRIP", index: idx });
+        setRemovedCount((n) => n + 1);
+        setShowRemovedBanner(true);
         return "no-trip";
       }
       setAiError((s) => ({ ...s, [idx]: "AI found no trip in this email" }));
@@ -569,8 +590,18 @@ export default function ReviewTable({ trips, dispatch, accessToken, provider = "
     } catch (err) {
       const msg = err.message ?? "";
       // Detect rate-limit / all-providers-exhausted signal from backend
-      if (msg.includes("rate limit") || msg.includes("rate-limit") || msg.includes("503") || msg.includes("unavailable")) {
+      if (msg.includes("rate limit") || msg.includes("rate-limit") || msg.includes("429") || msg.includes("503") || msg.includes("unavailable")) {
         return "rate-limited";
+      }
+      // Detect credits exhausted (402)
+      if (msg.includes("402") || msg.includes("scan pass") || msg.includes("Credits exhausted")) {
+        dispatch({ type: "SHOW_PAYWALL", reason: "exhausted" });
+        return "rate-limited"; // pause the queue
+      }
+      // Detect expired/invalid Google OAuth token (IDX14100 = token not JWT format; 401 auth = refresh failed)
+      if (msg.includes("IDX14100") || msg.includes("401 auth") || msg.includes("invalid_grant")) {
+        setAiError((s) => ({ ...s, [idx]: "Session expired — reconnect Gmail in the Connect tab" }));
+        return "error";
       }
       setAiError((s) => ({ ...s, [idx]: msg }));
       return "error";
@@ -673,6 +704,14 @@ export default function ReviewTable({ trips, dispatch, accessToken, provider = "
 
   return (
     <div className="flex flex-col gap-3">
+
+      {/* Removed non-flight emails banner */}
+      {showRemovedBanner && removedCount > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800 flex items-center justify-between">
+          <span>✓ Removed {removedCount} non-flight email{removedCount !== 1 ? "s" : ""} after AI review</span>
+          <button onClick={() => setShowRemovedBanner(false)} className="ml-3 text-amber-500 hover:text-amber-700 font-bold">✕</button>
+        </div>
+      )}
 
       {/* Summary bar */}
       <div className="bg-blue-50 rounded-lg p-3 text-xs text-blue-800 flex gap-4 flex-wrap items-center">
@@ -922,6 +961,32 @@ export default function ReviewTable({ trips, dispatch, accessToken, provider = "
                     {trip.airline ?? trip._from ?? "—"}
                   </td>
                   <td className="px-2 py-1.5">
+                    {/* Needs Review amber badge */}
+                    {tripNeedsReview(trip) && (
+                      <span className="inline-flex items-center gap-1 mr-1">
+                        <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">
+                          ⚠ Needs Review
+                        </span>
+                        <button
+                          onClick={() => dispatch({ type: "CONFIRM_TRIP", index: idx })}
+                          className="text-[10px] text-amber-600 underline hover:text-amber-800"
+                          title="Mark as confirmed and dismiss this badge"
+                        >
+                          Confirm anyway
+                        </button>
+                      </span>
+                    )}
+                    {snippetShouldShow(trip) && (
+                      <details className="mt-1">
+                        <summary className="text-[10px] text-amber-600 cursor-pointer select-none">
+                          Show email snippet
+                        </summary>
+                        <pre className="mt-1 text-[9px] text-gray-500 whitespace-pre-wrap break-words bg-amber-50 border border-amber-100 rounded p-1.5 max-h-20 overflow-auto font-mono leading-relaxed">
+                          {trip._snippet}
+                        </pre>
+                      </details>
+                    )}
+
                     {/* Duplicate / parent group badges */}
                     {isDup && (
                       <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 mr-1">
@@ -949,6 +1014,12 @@ export default function ReviewTable({ trips, dispatch, accessToken, provider = "
                     >
                       {trip.confidence === "rejected" ? `✗ ${trip._rejectedReason ?? "not a flight"}` : trip.confidence}
                     </span>
+                    {trip.confidence === "ai-assisted" && trip._aiProvider?.includes("sonnet") && (
+                      <span className="inline-block px-1 py-0.5 rounded text-[9px] font-medium bg-violet-100 text-violet-700 ml-1" title={`Extracted by ${trip._aiProvider}`}>✦ Sonnet</span>
+                    )}
+                    {trip._verified && (
+                      <span className="inline-block px-1 py-0.5 rounded text-[9px] font-medium bg-green-100 text-green-700 ml-1" title="Verification pass confirmed all fields">✓ verified</span>
+                    )}
                     {(trip.confidence === "unmatched" || trip.confidence === "low") && (
                       <button
                         onClick={() => handleAIParse(idx)}

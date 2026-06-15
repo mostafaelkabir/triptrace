@@ -15,7 +15,11 @@ async def verify_license(req: VerifyRequest) -> dict:
     secret = os.environ["JWT_SECRET"]
     try:
         payload = jwt.decode(req.token, secret, algorithms=["HS256"])
-        return {"valid": True, "tier": payload.get("tier", "paid")}
+        return {
+            "valid": True,
+            "tier": payload.get("tier", "paid"),
+            "months_allowed": payload.get("months_allowed", 60),
+        }
     except jwt.ExpiredSignatureError:
         return {"valid": False, "tier": None, "reason": "expired"}
     except jwt.PyJWTError:
